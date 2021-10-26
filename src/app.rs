@@ -20,9 +20,9 @@ impl FenwickTree {
             len,
             input_len: len,
             arr: vec![0; len + 1],
-            arr_marked: vec![true; len + 1],
+            arr_marked: vec![false; len + 1],
             fenwick: vec![0; len + 1],
-            fenwick_marked: vec![true; len + 1],
+            fenwick_marked: vec![false; len + 1],
             input_query: String::new(),
             input_update_ind: String::new(),
             input_update_val: String::new(),
@@ -33,6 +33,9 @@ impl FenwickTree {
         let mut relevant_indexes = Vec::new();
         let mut sum = 0;
         self.arr_marked = vec![false; self.len + 1];
+        for i in self.arr_marked.iter_mut().take(ind+1) {
+            *i = true;
+        }
         self.fenwick_marked = vec![false; self.len + 1];
         while ind > 0 {
             let bit: usize = ind.trailing_zeros() as usize;
@@ -224,8 +227,8 @@ impl epi::App for FenwickTree {
                     for i in 1..=self.len {
                         self.update(i, fastrand::i16(-10..=10));
                     }
-                    self.arr_marked = vec![true; self.len + 1];
-                    self.fenwick_marked = vec![true; self.len + 1];
+                    self.arr_marked = vec![false; self.len + 1];
+                    self.fenwick_marked = vec![false; self.len + 1];
                 }
                 ui.label("array");
             });
