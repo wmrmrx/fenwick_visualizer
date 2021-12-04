@@ -72,7 +72,7 @@ impl FenwickTree {
                 mid_point,
                 egui::Align2::RIGHT_CENTER,
                 i,
-                egui::TextStyle::Heading,
+                egui::TextStyle::Monospace,
                 egui::Color32::WHITE,
             );
         }
@@ -103,7 +103,7 @@ impl FenwickTree {
                 mid_point,
                 egui::Align2::CENTER_CENTER,
                 self.arr[i],
-                egui::TextStyle::Heading,
+                egui::TextStyle::Monospace,
                 if self.arr_marked[i] {
                     egui::Color32::GOLD
                 } else {
@@ -177,7 +177,7 @@ impl epi::App for FenwickTree {
     }
     fn update(&mut self, ctx: &egui::CtxRef, _frame: &mut epi::Frame<'_>) {
         egui::SidePanel::right("Side Panel").show(ctx, |ui| {
-            ui.add(egui::Slider::new(&mut self.input_len, 1..=24).text("Array length"));
+            ui.add(egui::Slider::new(&mut self.input_len, 1..=32).text("Array length"));
             if self.len != self.input_len {
                 self.reset();
             }
