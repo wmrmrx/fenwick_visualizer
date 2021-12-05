@@ -6,3 +6,6 @@ Fenwick tree visualizer using egui
 
 # Running it
 Run "cargo run --release" in the directory
+
+# Web preview
+https://wnmrmr.github.io/docs
