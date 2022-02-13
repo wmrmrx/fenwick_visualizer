@@ -171,11 +171,11 @@ impl epi::App for FenwickTree {
     fn setup(
         &mut self,
         _ctx: &egui::CtxRef,
-        _frame: &mut epi::Frame<'_>,
+        _frame: &epi::Frame,
         _storage: Option<&dyn epi::Storage>,
     ) {
     }
-    fn update(&mut self, ctx: &egui::CtxRef, _frame: &mut epi::Frame<'_>) {
+    fn update(&mut self, ctx: &egui::CtxRef, _frame: &epi::Frame) {
         egui::SidePanel::right("Side Panel").show(ctx, |ui| {
             ui.add(egui::Slider::new(&mut self.input_len, 1..=32).text("Array length"));
             if self.len != self.input_len {
@@ -237,11 +237,6 @@ impl epi::App for FenwickTree {
                     self.reset();
                 }
                 ui.label("array");
-            });
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
-                ui.add(
-                    egui::Hyperlink::new("https://github.com/emilk/egui/").text("powered by egui"),
-                );
             });
         });
         egui::Area::new("Nim Game").show(ctx, |ui| {
