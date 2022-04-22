@@ -4,8 +4,8 @@ Fenwick tree visualizer using egui
   <img src="https://github.com/wnmrmr/fenwick_visualizer/blob/main/images/preview.png" />
 </p>
 
-# Running it
-Run "cargo run --release" in the directory
+# Running
+Run `cargo run --release` in the directory
 
 # Web preview
 https://wnmrmr.github.io
