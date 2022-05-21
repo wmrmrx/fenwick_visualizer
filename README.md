@@ -8,4 +8,4 @@ Fenwick tree visualizer using egui
 Run `cargo run --release` in the directory
 
 # Web preview
-https://wnmrmr.github.io
+https://wmrmrx.github.io
