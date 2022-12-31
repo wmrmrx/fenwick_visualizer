@@ -103,11 +103,10 @@ impl FenwickTree {
         self.error = None;
     }
 
-    fn draw(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
-        use egui::{Pos2, Vec2};
-        let Vec2 { x: _, y: h } = frame.info().window_info.size;
+    fn draw(&mut self, ui: &mut egui::Ui, window_height: f32) {
+        use egui::Pos2;
         const K: f32 = 1.6;
-        let (by, uy) = (10.0, h - 10.0);
+        let (by, uy) = (10.0, window_height - 10.0);
 
         let x = 15.0;
         let draw_indexes = || {
@@ -331,8 +330,19 @@ impl eframe::App for FenwickTree {
             }
         });
 
+        #[cfg(not(target_arch = "wasm32"))]
+        let window_height = frame.info().window_info.size.y;
+        #[cfg(target_arch = "wasm32")]
+        let window_height = self.max_size_points().y;
+
         egui::Area::new("Area").show(ctx, |ui| {
-            self.draw(ui, frame);
+            self.draw(ui, window_height);
         });
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    // TODO: DONT HARDCODE WEB CANVAS SIZE
+    fn max_size_points(&self) -> egui::Vec2 {
+        egui::Vec2::new(600.0, 800.0)
     }
 }
