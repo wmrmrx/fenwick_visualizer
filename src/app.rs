@@ -1,248 +1,338 @@
-use eframe::{egui, epi};
-use egui::{Pos2, Ui};
+use eframe::egui;
+
+struct FontSizes {
+    pub index: f32,
+    pub array: f32,
+    pub fenwick: f32,
+}
+
+impl Default for FontSizes {
+    fn default() -> Self {
+        Self {
+            index: 14.0,
+            array: 16.0,
+            fenwick: 14.0,
+        }
+    }
+}
 
 pub struct FenwickTree {
     len: usize,
     input_len: usize,
-    arr: Vec<i16>,
-    arr_marked: Vec<bool>,
-    fenwick: Vec<i16>,
-    fenwick_marked: Vec<bool>,
+    arr: Vec<i64>,
+    arr_highlighted: Vec<bool>,
+    fenwick: Vec<i64>,
+    fenwick_highlighted: Vec<bool>,
     input_query: String,
     input_update_ind: String,
     input_update_val: String,
-    query_answer: Option<i16>,
+    font_sizes: FontSizes,
+    query_answer: Option<i64>,
+    error: Option<&'static str>,
 }
 
 impl FenwickTree {
-    pub fn new(len: usize) -> FenwickTree {
-        FenwickTree {
+    pub fn new(len: usize, _cc: &eframe::CreationContext<'_>) -> Self {
+        Self {
             len,
+            font_sizes: Default::default(),
             input_len: len,
-            arr: vec![0; len + 1],
-            arr_marked: vec![false; len + 1],
-            fenwick: vec![0; len + 1],
-            fenwick_marked: vec![false; len + 1],
+            arr: vec![0; len],
+            arr_highlighted: vec![false; len],
+            fenwick: vec![0; len],
+            fenwick_highlighted: vec![false; len],
             input_query: String::new(),
             input_update_ind: String::new(),
             input_update_val: String::new(),
             query_answer: None,
+            error: None,
         }
     }
-    fn query(&mut self, mut ind: usize) {
-        let mut relevant_indexes = Vec::new();
-        let mut sum = 0;
-        self.arr_marked = vec![false; self.len + 1];
-        for i in self.arr_marked.iter_mut().take(ind+1) {
-            *i = true;
+
+    fn resize(&mut self, len: usize) {
+        if len != self.len {
+            self.len = len;
+            self.arr.resize(len, 0);
+            self.arr_highlighted.resize(len, false);
+            self.fenwick.resize(len, 0);
+            self.fenwick_highlighted.resize(len, false);
         }
-        self.fenwick_marked = vec![false; self.len + 1];
+    }
+
+    fn query(&mut self, mut ind: usize) {
+        let mut sum = 0;
+        self.arr_highlighted
+            .iter_mut()
+            .enumerate()
+            .for_each(|(i, x)| *x = i < ind);
+        self.fenwick_highlighted.iter_mut().for_each(|x| *x = false);
         while ind > 0 {
             let bit: usize = ind.trailing_zeros() as usize;
-            self.fenwick_marked[ind] = true;
-            relevant_indexes.push(ind);
-            sum += self.fenwick[ind];
+            self.fenwick_highlighted[ind - 1] = true;
+            sum += self.fenwick[ind - 1];
             ind -= 1 << bit;
         }
         self.query_answer = Some(sum);
     }
-    fn update(&mut self, mut ind: usize, val: i16) {
-        self.arr_marked = vec![false; self.len + 1];
-        let diff = val - self.arr[ind];
-        self.arr[ind] = val;
-        self.arr_marked[ind] = true;
-        self.fenwick_marked = vec![false; self.len + 1];
+
+    fn update(&mut self, mut ind: usize, val: i64) {
+        self.arr_highlighted.iter_mut().for_each(|x| *x = false);
+        self.fenwick_highlighted.iter_mut().for_each(|x| *x = false);
+        let diff = val - self.arr[ind - 1];
+        self.arr[ind - 1] = val;
+        self.arr_highlighted[ind - 1] = true;
         while ind <= self.len {
             let bit: usize = ind.trailing_zeros() as usize;
-            self.fenwick_marked[ind] = true;
-            self.fenwick[ind] += diff;
+            self.fenwick_highlighted[ind - 1] = true;
+            self.fenwick[ind - 1] += diff;
             ind += 1 << bit;
         }
     }
+
     fn reset(&mut self) {
-        *self = FenwickTree::new(self.input_len);
-    }
-    fn draw_indexes(&self, ui: &mut Ui) {
-        let x = 30.0;
-        let (by, uy) = (10.0, 590.0);
-        for i in 1..=self.len {
-            let y: f32 = uy - (uy - by) / (self.len as f32) * (i as f32 - 0.5);
-            let mid_point = Pos2 { x, y };
-            ui.painter().text(
-                mid_point,
-                egui::Align2::RIGHT_CENTER,
-                i,
-                egui::TextStyle::Monospace,
-                egui::Color32::WHITE,
-            );
+        for i in 0..self.len {
+            self.arr[i] = 0;
+            self.arr_highlighted[i] = false;
+            self.fenwick[i] = 0;
+            self.fenwick_highlighted[i] = false;
         }
+        self.input_query.clear();
+        self.input_update_ind.clear();
+        self.input_update_val.clear();
+        self.query_answer = None;
+        self.error = None;
     }
-    fn draw_array(&self, ui: &mut Ui) {
-        let (lx, rx) = (40.0, 100.0);
-        let (by, uy) = (10.0, 590.0);
-        let stroke = egui::Stroke {
-            width: 3.5,
-            color: egui::Color32::WHITE,
-        };
-        let rect = egui::Rect {
-            min: Pos2 { x: lx, y: by },
-            max: Pos2 { x: rx, y: uy },
-        };
-        ui.painter().rect_stroke(rect, 3.0, stroke);
-        for i in 1..=self.len {
-            let y: f32 = uy - (uy - by) / (self.len as f32) * (i as f32);
-            let line = [Pos2 { x: lx, y }, Pos2 { x: rx, y }];
-            if i < self.len {
-                ui.painter().line_segment(line, stroke);
+
+    fn draw(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        use egui::{Pos2, Vec2};
+        let Vec2 { x: _, y: h } = frame.info().window_info.size;
+        const K: f32 = 1.6;
+        let (by, uy) = (10.0, h - 10.0);
+
+        let x = 15.0;
+        let draw_indexes = || {
+            for i in 1..=self.len {
+                let y: f32 = uy - (uy - by) / (self.len as f32) * (i as f32 - 0.5);
+                let point = Pos2 { x, y };
+                ui.painter().text(
+                    point,
+                    egui::Align2::LEFT_CENTER,
+                    i,
+                    egui::FontId {
+                        size: self.font_sizes.index,
+                        family: egui::FontFamily::Monospace,
+                    },
+                    egui::Color32::WHITE,
+                );
             }
-            let mid_point = Pos2 {
-                x: (lx + rx) / 2.0,
-                y: y + (uy - by) / (self.len as f32) / 2.0,
+        };
+        draw_indexes();
+
+        let lx = x + K * self.font_sizes.index;
+        let rx = lx + 20.0 + K * self.font_sizes.array;
+        let draw_array = || {
+            let stroke = egui::Stroke {
+                width: 3.5,
+                color: egui::Color32::WHITE,
             };
-            ui.painter().text(
-                mid_point,
-                egui::Align2::CENTER_CENTER,
-                self.arr[i],
-                egui::TextStyle::Monospace,
-                if self.arr_marked[i] {
-                    egui::Color32::GOLD
-                } else {
-                    egui::Color32::WHITE
-                },
-            );
-        }
-    }
-    fn draw_fenwick(&self, ui: &mut Ui) {
-        let (by, uy) = (10.0, 590.0);
-        let (x_width, x_spacing) = (10.0, 45.0);
-        let (mut x_intervals, mut y_intervals) = (
-            vec![0.0; 64 - self.len.leading_zeros() as usize],
-            vec![0.0; self.len + 1],
-        );
-        for (ind, y) in y_intervals.iter_mut().enumerate() {
-            *y = uy - (uy - by) / (self.len as f32) * (ind as f32);
-        }
-        for (ind, x) in x_intervals.iter_mut().enumerate() {
-            *x = 105.0 + (x_width + x_spacing) * (ind as f32);
-        }
-        for i in 1..=self.len {
-            let bit = i.trailing_zeros() as usize;
             let rect = egui::Rect {
-                min: Pos2 {
-                    x: x_intervals[bit],
-                    y: y_intervals[i],
-                },
-                max: Pos2 {
-                    x: x_intervals[bit] + x_width,
-                    y: y_intervals[i - (1 << bit)],
-                },
+                min: Pos2 { x: lx, y: by },
+                max: Pos2 { x: rx, y: uy },
             };
-            ui.painter().rect_filled(
-                rect,
-                2.0,
-                if self.fenwick_marked[i] {
-                    egui::Color32::GOLD
-                } else {
-                    egui::Color32::WHITE
-                },
+            ui.painter().rect_stroke(rect, 3.0, stroke);
+            for i in 1..=self.len {
+                let y: f32 = uy - (uy - by) / (self.len as f32) * (i as f32);
+                let line = [Pos2 { x: lx, y }, Pos2 { x: rx, y }];
+                if i < self.len {
+                    ui.painter().line_segment(line, stroke);
+                }
+                let mid_point = Pos2 {
+                    x: (lx + rx) / 2.0,
+                    y: y + (uy - by) / (self.len as f32) / 2.0,
+                };
+                ui.painter().text(
+                    mid_point,
+                    egui::Align2::CENTER_CENTER,
+                    self.arr[i - 1],
+                    egui::FontId {
+                        size: self.font_sizes.array,
+                        family: egui::FontFamily::Monospace,
+                    },
+                    if self.arr_highlighted[i - 1] {
+                        egui::Color32::GOLD
+                    } else {
+                        egui::Color32::WHITE
+                    },
+                );
+            }
+        };
+        draw_array();
+
+        let draw_fenwick = || {
+            let (x_width, x_spacing) = (10.0, 30.0 + K * self.font_sizes.fenwick);
+            let (mut x_intervals, mut y_intervals) = (
+                vec![0.0; 64 - self.len.leading_zeros() as usize].into_boxed_slice(),
+                vec![0.0; self.len + 1].into_boxed_slice(),
             );
-            ui.painter().text(
-                Pos2 {
-                    x: x_intervals[bit] + x_width + 5.0,
-                    y: (y_intervals[i] + y_intervals[i - (1 << bit)]) / 2.0,
-                },
-                egui::Align2::LEFT_CENTER,
-                self.fenwick[i],
-                egui::TextStyle::Monospace,
-                if self.fenwick_marked[i] {
-                    egui::Color32::GOLD
-                } else {
-                    egui::Color32::WHITE
-                },
-            );
-        }
+            for (ind, y) in y_intervals.iter_mut().enumerate() {
+                *y = uy - (uy - by) / (self.len as f32) * (ind as f32);
+            }
+            for (ind, x) in x_intervals.iter_mut().enumerate() {
+                *x = rx + 10.0 + (x_width + x_spacing) * (ind as f32);
+            }
+            for i in 1..=self.len {
+                let bit = i.trailing_zeros() as usize;
+                let rect = egui::Rect {
+                    min: Pos2 {
+                        x: x_intervals[bit],
+                        y: y_intervals[i],
+                    },
+                    max: Pos2 {
+                        x: x_intervals[bit] + x_width,
+                        y: y_intervals[i - (1 << bit)],
+                    },
+                };
+                ui.painter().rect_filled(
+                    rect,
+                    2.0,
+                    if self.fenwick_highlighted[i - 1] {
+                        egui::Color32::GOLD
+                    } else {
+                        egui::Color32::WHITE
+                    },
+                );
+                ui.painter().text(
+                    Pos2 {
+                        x: x_intervals[bit] + x_width + 5.0,
+                        y: (y_intervals[i] + y_intervals[i - (1 << bit)]) / 2.0,
+                    },
+                    egui::Align2::LEFT_CENTER,
+                    self.fenwick[i - 1],
+                    egui::FontId {
+                        size: self.font_sizes.fenwick,
+                        family: egui::FontFamily::Monospace,
+                    },
+                    if self.fenwick_highlighted[i - 1] {
+                        egui::Color32::GOLD
+                    } else {
+                        egui::Color32::WHITE
+                    },
+                );
+            }
+        };
+        draw_fenwick();
     }
 }
 
-impl epi::App for FenwickTree {
-    fn name(&self) -> &str {
-        "Fenwick Tree visualizer"
-    }
-    fn setup(
-        &mut self,
-        _ctx: &egui::CtxRef,
-        _frame: &epi::Frame,
-        _storage: Option<&dyn epi::Storage>,
-    ) {
-    }
-    fn update(&mut self, ctx: &egui::CtxRef, _frame: &epi::Frame) {
+impl eframe::App for FenwickTree {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         egui::SidePanel::right("Side Panel").show(ctx, |ui| {
-            ui.add(egui::Slider::new(&mut self.input_len, 1..=32).text("Array length"));
-            if self.len != self.input_len {
-                self.reset();
-            }
+            ui.add_space(5.0);
+            ui.add(egui::Slider::new(&mut self.input_len, 1..=64).text("Array length"));
+            self.resize(self.input_len);
+            ui.add_space(10.0);
+
             ui.horizontal(|ui| {
                 if ui.button("Query").clicked() {
-                    if let Ok(x) = self.input_query.parse::<usize>() {
+                    self.error = if let Ok(x) = self.input_query.parse::<usize>() {
                         if 1 <= x && x <= self.len {
                             self.query(x);
+                            None
+                        } else {
+                            Some("Invalid query index range (must be between 1 and array length)")
                         }
+                    } else {
+                        Some("Invalid query index")
                     }
                 }
                 ui.label("prefix sum of index X");
             });
+            ui.add_space(5.0);
             ui.horizontal(|ui| {
                 ui.label("X: ");
                 ui.text_edit_singleline(&mut self.input_query);
             });
+            ui.add_space(5.0);
             ui.horizontal(|ui| {
                 ui.label("Query answer: ");
                 if let Some(x) = self.query_answer {
                     ui.label(format!("{}", x));
                 }
             });
+
+            ui.add_space(10.0);
             ui.horizontal(|ui| {
                 if ui.button("Update").clicked() {
-                    if let Ok(x) = self.input_update_ind.parse::<usize>() {
-                        if let Ok(y) = self.input_update_val.parse::<i16>() {
-                            if 1 <= x && x <= self.len {
+                    self.error = if let Ok(x) = self.input_update_ind.parse::<usize>() {
+                        if 1 <= x && x <= self.len {
+                            if let Ok(y) = self.input_update_val.parse::<i64>() {
                                 self.update(x, y);
+                                None
+                            } else {
+                                Some("Invalid update value")
                             }
+                        } else {
+                            Some("Invalid update index range (must be between 1 and array length)")
                         }
+                    } else {
+                        Some("Invalid update index")
                     }
                 }
                 ui.label("value in X to Y");
             });
+            ui.add_space(5.0);
             ui.horizontal(|ui| {
                 ui.label("X: ");
                 ui.text_edit_singleline(&mut self.input_update_ind);
             });
+            ui.add_space(5.0);
             ui.horizontal(|ui| {
                 ui.label("Y: ");
                 ui.text_edit_singleline(&mut self.input_update_val);
             });
+
+            ui.add_space(10.0);
             ui.horizontal(|ui| {
                 if ui.button("Randomize").clicked() {
                     self.reset();
                     for i in 1..=self.len {
-                        self.update(i, fastrand::i16(-10..=10));
+                        self.update(i, fastrand::i64(-100..=100));
                     }
-                    self.arr_marked = vec![false; self.len + 1];
-                    self.fenwick_marked = vec![false; self.len + 1];
+                    self.arr_highlighted.iter_mut().for_each(|x| *x = false);
+                    self.fenwick_highlighted.iter_mut().for_each(|x| *x = false);
                 }
                 ui.label("array");
             });
+
+            ui.add_space(10.0);
             ui.horizontal(|ui| {
                 if ui.button("Reset").clicked() {
                     self.reset();
                 }
                 ui.label("array");
             });
+
+            ui.add_space(10.0);
+            ui.add(
+                egui::Slider::new(&mut self.font_sizes.index, 4.0..=64.0).text("Index font size"),
+            );
+            ui.add(
+                egui::Slider::new(&mut self.font_sizes.array, 4.0..=64.0)
+                    .text("Array elements font size"),
+            );
+            ui.add(
+                egui::Slider::new(&mut self.font_sizes.fenwick, 4.0..=64.0)
+                    .text("Fenwick tree font size"),
+            );
+
+            ui.add_space(20.0);
+            if let Some(err) = self.error {
+                ui.label(egui::RichText::new(err).color(egui::Color32::RED));
+            }
         });
-        egui::Area::new("Nim Game").show(ctx, |ui| {
-            self.draw_indexes(ui);
-            self.draw_array(ui);
-            self.draw_fenwick(ui);
+
+        egui::Area::new("Area").show(ctx, |ui| {
+            self.draw(ui, frame);
         });
     }
 }
